@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "misraj"
+version = "0.1.0"
+description = "The official Python API client for Misraj.ai"
+readme = "README.md"
+authors = [
+    { name = "Misraj.ai", email = "support@misraj.ai" }
+]
+requires-python = ">=3.8"
+dependencies = [
+    "httpx>=0.23.0",
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.5.0",
+    "PyMuPDF>=1.23.0",
+]
+
+[project.urls]
+Homepage = "https://misraj.ai"
+Source = "https://github.com/misraj-ai/misraj-python"
