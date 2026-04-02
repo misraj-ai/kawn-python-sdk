@@ -1,14 +1,21 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
-name = "misraj"
+name = "misraj.ai"
 version = "0.1.0"
-description = "The official Python API client for Misraj.ai"
-readme = "README.md"
 authors = [
-    { name = "Misraj.ai", email = "support@misraj.ai" }
+  { name="Khalil Hennara", email="khalil@misraj.ai" },
+]
+description = "The official Python SDK for the Misraj AI API"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
 ]
 requires-python = ">=3.8"
 dependencies = [
