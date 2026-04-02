@@ -5,7 +5,7 @@ The official Python client for interacting with the misraj.ai API.
 ## Installation
 
 ```bash
-pip install misraj.ai
+pip install kawn.ai
 ```
 
 ## Setup
@@ -18,13 +18,13 @@ export MISRAJ_API_KEY="your-api-key"
 
 ## Architecture Usage
 
-The `misraj.ai` SDK is designed with decoupled services. You create a core HTTP `Client` first, and pass it to whatever specific service you need. This keeps the library robust and easy to extend.
+The `kawn.ai` SDK is designed with decoupled services. You create a core HTTP `Client` first, and pass it to whatever specific service you need. This keeps the library robust and easy to extend.
 
 ### 1. Synchronous Usage
 
 ```python
-from misraj import Client
-from misraj.services import EmbeddingService, OCRService
+from kawn import KawnClient
+from kawn.services import EmbeddingService, OCRService
 
 # The client automatically picks up the MISRAJ_API_KEY environment variable.
 client = Client()
@@ -34,7 +34,7 @@ embeddings_service = EmbeddingService(client)
 ocr_service = OCRService(client)
 
 # Text Embeddings
-response = embeddings_service.create(inputs="Hello, misraj.ai!")
+response = embeddings_service.create(inputs="Hello, kawn.ai!")
 print(response.data[0].embedding)
 
 # Batch Embeddings
@@ -64,8 +64,8 @@ For high-performance applications, use the `AsyncClient` and async services.
 
 ```python
 import asyncio
-from misraj import AsyncClient
-from misraj.services import AsyncEmbeddingService, AsyncOCRService
+from kawn import AsyncKawnClient
+from kawn.services import AsyncEmbeddingService, AsyncOCRService
 
 async def main():
     # You can also pass credentials explicitly if bypassing env variables
@@ -112,13 +112,13 @@ image_files = convert_pdf_to_images(
 ## Error Handling
 
 ```python
-from misraj import Client
-from misraj import MisrajAPIError, AuthenticationError, RateLimitError
-from misraj.exceptions import ProcessingFailedError
-from misraj.services import OCRService
+from kawn import KawnClient
+from kawn import KawnAPIError, AuthenticationError, RateLimitError
+from kawn.exceptions import ProcessingFailedError
+from kawn.services import OCRService
 
 try:
-    client = Client()
+    client = KawnClient()
     ocr = OCRService(client)
     ocr.process_file("broken_file.jpg")
 except AuthenticationError as e:
@@ -127,6 +127,6 @@ except RateLimitError as e:
     print("Too many requests, slow down!", e)
 except ProcessingFailedError as e:
     print("OCR Processing failed on the server!", e)
-except MisrajAPIError as e:
+except KawnAPIError as e:
     print(f"Generic server error: {e}")
 ```
