@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Union, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 
-from src.misraj.services.base import AsyncBaseService, BaseService
-from src.misraj.types.ocr import OCRUploadResponse, OCRStatusResponse, OCRResult, OCRBatchResult
-from src.misraj.configs.constant import POLL_INTERVAL, MAX_OCR_BATCH_SIZE, OCR_MODEL, MAX_THREAD_FOR_BATCH_REQUEST
-from src.misraj.exceptions import ProcessingFailedError, InvalidRequestError
-from src.misraj.utils.logging import get_logger
+from .base import AsyncBaseService, BaseService
+from ..types.ocr import OCRUploadResponse, OCRStatusResponse, OCRResult, OCRBatchResult
+from ..configs.constant import POLL_INTERVAL, MAX_OCR_BATCH_SIZE, OCR_MODEL, MAX_THREAD_FOR_BATCH_REQUEST
+from ..exceptions import ProcessingFailedError, InvalidRequestError
+from ..utils.logging import get_logger
 
 logger = get_logger("[OCR Service]")
 

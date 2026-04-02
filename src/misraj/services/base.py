@@ -1,4 +1,4 @@
-from src.misraj.client import MisrajClient, AsyncMisrajClient
+from ..client import MisrajClient, AsyncMisrajClient
 
 
 class BaseService:
