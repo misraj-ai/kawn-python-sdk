@@ -1,7 +1,7 @@
 import asyncio
 import os
 from typing import Union, List, Optional
-from base import BaseService, AsyncBaseService
+from src.misraj.services.base import BaseService, AsyncBaseService
 from src.misraj.client import MisrajClient, AsyncMisrajClient
 from src.misraj.types.embedding import EmbeddingRequest, EmbeddingResponse
 from src.misraj.configs.constant import MAX_EMBEDDING_BATCH_SIZE, EMBEDDING_MODEL
@@ -51,3 +51,9 @@ class AsyncEmbeddingService(AsyncBaseService):
 
         res = await self._client.request("POST", "/v1/embeddings/embed", json=payload)
         return EmbeddingResponse(**res.json())
+
+
+if __name__ == "__main__":
+    os.environ['MISRAJ_API_KEY'] = 'kc_pvJ9AhIagJACH0oBxm6OOfL2FOHKKYXxkF2OydU61Mnay1vRLYPPWYHI79ecdxiK'
+    em = EmbeddingService(MisrajClient())
+    res = em.create("test")

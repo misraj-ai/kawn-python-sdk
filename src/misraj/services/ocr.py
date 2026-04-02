@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 
-from base import AsyncBaseService, BaseService
+from src.misraj.services.base import AsyncBaseService, BaseService
 from src.misraj.types.ocr import OCRUploadResponse, OCRStatusResponse, OCRResult, OCRBatchResult
 from src.misraj.configs.constant import POLL_INTERVAL, MAX_OCR_BATCH_SIZE, OCR_MODEL, MAX_THREAD_FOR_BATCH_REQUEST
 from src.misraj.exceptions import ProcessingFailedError, InvalidRequestError

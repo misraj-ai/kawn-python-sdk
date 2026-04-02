@@ -5,7 +5,7 @@ The official Python client for interacting with the misraj.ai API.
 ## Installation
 
 ```bash
-pip install misraj.ai
+pip install misraj
 ```
 
 ## Setup
