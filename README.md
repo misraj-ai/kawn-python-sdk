@@ -1,6 +1,6 @@
 # kawn.ai Python SDK
 
-The official Python client for interacting with the kawn.ai API.
+The official Python client for interacting with the [kawn.ai](https://kawn.ai/en) API.
 
 ## Installation
 
