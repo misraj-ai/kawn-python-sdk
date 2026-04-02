@@ -1,158 +1,113 @@
-import pathlib
-from typing import List, Union, Tuple, Any
 import asyncio
-import aiofiles
+import time
+import json
+from pathlib import Path
+from typing import Union, List, Optional
+from concurrent.futures import ThreadPoolExecutor
 
-
-from .base import BaseService, AsyncBaseService
-from ..types import OCRResponse, BatchOCRResponse
-from ..utils.pdf import convert_pdf_to_images
-from ..utils.logging import get_logger
-
-logger = get_logger(__name__)
-
-
-FileTypes = Union[
-    str,
-    pathlib.Path,
-    bytes,
-    Tuple[str, Union[bytes, Any]],
-    Tuple[str, Union[bytes, Any], str]
-]
-
-
-def _is_pdf(file_input: FileTypes) -> bool:
-    """Helper to detect if a file input is a PDF by extension or magic bytes."""
-    if isinstance(file_input, (str, pathlib.Path)):
-        return str(file_input).lower().endswith(".pdf")
-    elif isinstance(file_input, bytes):
-        return file_input.startswith(b"%PDF-")
-    elif isinstance(file_input, tuple):
-        if isinstance(file_input[0], str) and file_input[0].lower().endswith(".pdf"):
-            return True
-        if isinstance(file_input[1], bytes) and file_input[1].startswith(b"%PDF-"):
-            return True
-    return False
-
-
-async def _async_flatten_images(images: List[FileTypes]) -> List[FileTypes]:
-    """Asynchronously flattens a list of inputs, expanding PDFs into multiple JPEGs."""
-    flattened = []
-    for img in images:
-        if _is_pdf(img):
-            # 1. Non-blocking File I/O
-            if isinstance(img, (str, pathlib.Path)):
-                async with aiofiles.open(img, mode='rb') as f:
-                    pdf_bytes = await f.read()
-            elif isinstance(img, tuple):
-                pdf_bytes = img[1]
-            else:
-                pdf_bytes = img
-
-            # 2. Non-blocking CPU Work (Offload to a thread)
-            # This assumes convert_pdf_to_images is a synchronous, CPU-heavy function
-            page_images = await asyncio.to_thread(convert_pdf_to_images, pdf_bytes)
-
-            flattened.extend(page_images)
-        else:
-            flattened.append(img)
-    return flattened
-
-
-def _flatten_images(images: List[FileTypes]) -> List[FileTypes]:
-    """Flattens a list of inputs, expanding PDFs into multiple individual JPEG pages."""
-    flattened = []
-    for img in images:
-        if _is_pdf(img):
-            if isinstance(img, (str, pathlib.Path)):
-                pdf_bytes = pathlib.Path(img).read_bytes()
-            elif isinstance(img, tuple):
-                pdf_bytes = img[1]
-            else:
-                pdf_bytes = img
-
-            page_images = convert_pdf_to_images(pdf_bytes)
-            flattened.extend(page_images)
-        else:
-            flattened.append(img)
-    return flattened
-
-
-def _prepare_file(file_input: FileTypes) -> Tuple[str, Any, str]:
-    """Helper to unify file inputs into a format httpx accepts."""
-    if isinstance(file_input, (str, pathlib.Path)):
-        path = pathlib.Path(file_input)
-        return (path.name, path.read_bytes(), "application/octet-stream")
-    elif isinstance(file_input, bytes):
-        return ("image.jpeg", file_input, "application/octet-stream")
-    elif isinstance(file_input, tuple):
-        if len(file_input) == 2:
-            return (file_input[0], file_input[1], "application/octet-stream")
-        elif len(file_input) == 3:
-            return file_input
-    raise ValueError(f"Unsupported file input type: {type(file_input)}")
+from .base import AsyncBaseService, BaseService
+from ..types.ocr import OCRUploadResponse, OCRStatusResponse, OCRResult, OCRBatchResult
+from ..configs.constant import POLL_INTERVAL, MAX_OCR_BATCH_SIZE, OCR_MODEL, MAX_THREAD_FOR_BATCH_REQUEST
+from ..exceptions import ProcessingFailedError, InvalidRequestError
 
 
 class OCRService(BaseService):
-    """Synchronous Basser OCR service."""
 
-    def extract(self,
-                image: Union[FileTypes, List[FileTypes]],
-                model: str = "misraj-basser") -> Union[OCRResponse]:
-        """
-        Extract text from a single image, a list of images, or multi-page PDFs using the Basser model.
-        Returns an OCRResponse for a single non-PDF image or single-page PDF,
-        and a BatchOCRResponse for a list of images or a multi-page PDF.
-        """
+    def process_image(self,
+                      file_path: Union[str, Path],
+                      model: Optional[str] = None,
+                      options: Optional[dict] = None) -> OCRResult:
 
-        images_to_process = image if isinstance(image, list) else [image]
-        flattened = _flatten_images(images_to_process)
+        file_path = Path(file_path)
+        data = {"model": model if model else OCR_MODEL}
 
-        if not flattened:
-            raise ValueError("No valid images or PDF pages found.")
+        if options:
+            data["options"] = json.dumps(options)
 
-        # Batch image path
-        files = []
-        for img in flattened:
-            files.append(("images", _prepare_file(img)))
+        # 1. Upload
+        with open(file_path, "rb") as f:
+            file = {"file": (file_path.name, f)}
+            res = self._client.request("POST", "/ocr", data=data, file=file)
 
-        data = {"model": model}
-        response_data = self._client.request(
-            "POST",
-            "/ocr/extract",
-            data=data,
-            files=files
-        )
-        return OCRResponse(**response_data)
+        file_id = OCRUploadResponse(**res.json()).fileId
+
+        # 2. Poll
+        while True:
+            status_res = self._client.request("GET", f"/ocr/{file_id}/status")
+            status_data = OCRStatusResponse(**status_res.json())
+            if status_data.status == "completed":
+                break
+            elif status_data.status == "failed":
+                raise ProcessingFailedError(f"OCR processing failed for file {file_id}")
+            time.sleep(POLL_INTERVAL)
+
+        # 3. Retrieve
+        result_res = self._client.request("GET", f"/ocr/{file_id}/results")
+        return OCRResult(**result_res.json())
+
+    def process_batch(self,
+                      file_paths: List[Union[str, Path]],
+                      model: Optional[str] = None,
+                      options: Optional[dict] = None) -> OCRBatchResult:
+
+        if len(file_paths) > MAX_OCR_BATCH_SIZE:
+            raise InvalidRequestError(f"Batch size exceeds {MAX_OCR_BATCH_SIZE}")
+
+        batch_result = OCRBatchResult()
+        with ThreadPoolExecutor(max_workers=min(len(file_paths), MAX_THREAD_FOR_BATCH_REQUEST)) as executor:
+            future_to_path = {executor.submit(self.process_image, fp, model, options): fp for fp in file_paths}
+            for future in future_to_path:
+                try:
+                    batch_result.successful_results.append(future.result())
+                except Exception as exc:
+                    batch_result.failed_files.append(str(future_to_path[future]))
+        return batch_result
 
 
 class AsyncOCRService(AsyncBaseService):
-    """Asynchronous Basser OCR service."""
 
-    async def extract(self,
-                      image: Union[FileTypes, List[FileTypes]],
-                      model: str = "misraj-basser") -> Union[OCRResponse]:
-        """
-        Extract text from a single image, a list of images, or multi-page PDFs asynchronously using the Basser model.
-        Returns an OCRResponse for a single non-PDF image or single-page PDF,
-        and a BatchOCRResponse for a list of images or a multi-page PDF.
-        """
-        images_to_process = image if isinstance(image, list) else [image]
-        flattened = await _async_flatten_images(images_to_process)
+    async def process_image(self,
+                            file_path: Union[str, Path],
+                            model: Optional[str] = None,
+                            options: Optional[dict] = None) -> OCRResult:
+        file_path = Path(file_path)
+        data = {"model": model if model else OCR_MODEL}
+        if options:
+            data["options"] = json.dumps(options)
 
-        if not flattened:
-            raise ValueError("No valid images or PDF pages found.")
+        with open(file_path, "rb") as f:
+            file = {"file": (file_path.name, f)}
+            res = await self._client.request("POST", "/ocr", data=data, file=file)
 
-        # Batch image path
-        files = []
-        for img in flattened:
-            files.append(("images", _prepare_file(img)))
+        file_id = OCRUploadResponse(**res.json()).fileId
 
-        data = {"model": model}
-        response_data = await self._client.request(
-            "POST",
-            "/ocr/extract",
-            data=data,
-            files=files
-        )
-        return OCRResponse(**response_data)
+        while True:
+            status_res = await self._client.request("GET", f"/ocr/{file_id}/status")
+            status_data = OCRStatusResponse(**status_res.json())
+            if status_data.status == "completed":
+                break
+            elif status_data.status == "failed":
+                raise ProcessingFailedError(f"OCR processing failed for file {file_id}")
+            await asyncio.sleep(POLL_INTERVAL)
+
+        result_res = await self._client.request("GET", f"/ocr/{file_id}/results")
+        return OCRResult(**result_res.json())
+
+    async def process_batch(self,
+                            file_paths: List[Union[str, Path]],
+                            model: Optional[str] = None,
+                            options: Optional[dict] = None) -> OCRBatchResult:
+
+        if len(file_paths) > MAX_OCR_BATCH_SIZE:
+            raise InvalidRequestError(f"Batch size exceeds {MAX_OCR_BATCH_SIZE}")
+
+        tasks = [self.process_image(fp, model, options) for fp in file_paths]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        batch_result = OCRBatchResult()
+        for fp, result in zip(file_paths, results):
+            if isinstance(result, Exception):
+                batch_result.failed_files.append(str(fp))
+            else:
+                batch_result.successful_results.append(result)
+        return batch_result
