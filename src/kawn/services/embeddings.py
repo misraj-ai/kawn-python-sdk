@@ -28,7 +28,7 @@ class EmbeddingService(BaseService):
         logger.info(f"Prepare the request using {model} model, if you want to use different model "
                     f"please provide the model name within the object constructor `EmbeddingService(model='embedding-v2')`")
 
-        res = self._client.request("POST", "/v1/embeddings/embed", json=payload)
+        res = self._client.request("POST", "/v1/embeddings", json=payload)
 
         return EmbeddingResponse(**res.json())
 
@@ -46,5 +46,5 @@ class AsyncEmbeddingService(AsyncBaseService):
         logger.info(f"Prepare the request using {model} model, if you want to use different model "
                     f"please provide the model name within the object constructor `EmbeddingService(model='embedding-v2')`")
 
-        res = await self._client.request("POST", "/v1/embeddings/embed", json=payload)
+        res = await self._client.request("POST", "/v1/embeddings", json=payload)
         return EmbeddingResponse(**res.json())
