@@ -10,7 +10,7 @@ pip install kawn.ai
 
 ## Setup
 
-Set your API key as an environment variable (recommended):
+Set your API key as an environment variable (recommended); if you don't have a key you can get one from [kawn consonle](https://dashboard-dev.kawn.ai/auth/login?redirectTo=%2F)
 
 ```bash
 export MISRAJ_API_KEY="your-api-key"
